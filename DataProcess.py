@@ -3,7 +3,7 @@ import numpy as np
 
 # Merge three csv. f1 = base.csv, f2 = year_report.csv, f3 = money_report.csv
 # Then, apply drop na and wash data.
-def mergeCsv(f1, f2, f3, out)->None:
+def mergeCsv(f1, f2, f3, out, onlynaflag=False)->None:
     print("Combining 1/2...")
     c1 = pd.read_csv(f1)[["ID", "flag"]]
     c2 = pd.read_csv(f2)
@@ -12,7 +12,6 @@ def mergeCsv(f1, f2, f3, out)->None:
     print("Combining 2/2...")
     c3 = pd.read_csv(f3)
     ndf = pd.merge(c3, ndf, on=['ID', 'year'])
-
     print("Washing Data")
     # HAS PROBLEM !
     # print("---Dropping negative(Optional)...")
@@ -34,13 +33,22 @@ def mergeCsv(f1, f2, f3, out)->None:
     ndf.drop(ndf[ndf['xmzccost'].isna() & ndf['xmzclimit']!=0].index, inplace=True)
     ndf.drop(ndf[ndf['xmzccost'] > ndf['xmzclimit']].index, inplace=True)
     print("Washing OK")
-    ndf.dropna(subset= ['flag', 'year'] ,inplace=True)
+
+    if(onlynaflag == True):
+        print("[WARNING] Only keep na flag value")
+        ndf.drop(ndf[ndf['flag'] >=0].index, inplace=True)
+    else:
+        print("Dropping years and flags...")
+        ndf.dropna(subset= ['flag', 'year'] ,inplace=True)
+    
     '''
     f = open("mid.csv", "w")
     ndf.to_csv(path_or_buf=f, line_terminator='\n', na_rep='NaN', columns=ndf.columns, index=False)
     raise Exception
     '''
 
+    # The bottom part is not needed, at least for now.
+    '''
     print("Filling Na")
     ndf['zqlimit'].fillna(0, inplace=True)
     ndf['gqlimit'].fillna(0, inplace=True)
@@ -53,6 +61,7 @@ def mergeCsv(f1, f2, f3, out)->None:
     for i in ndf.columns:
         ndf[i].fillna(ndf[i].mean(), inplace=True)
     print("Fill Na OK")
+    '''
 
     print("Dropping Year...")
     ndf.drop('year', axis=1, inplace=True)
@@ -123,7 +132,7 @@ def extractFlagForRate(file):
     df = pd.read_csv(file)
     df = df.take(np.random.permutation(len(df)))
     train_labels = df.as_matrix(columns=['flag'])
-    df = df.drop(columns=['flag', 'ID', 'xmzc_perc', 'gq_perc', 'nbmy_perc', 'zq_perc'])
+    df = df.drop(columns=['flag', 'ID'])
     # df = df.drop(columns=['flag', 'ID'])
     train_data = df.as_matrix()
     return (train_data, train_labels)
@@ -170,7 +179,15 @@ def ratioProcess(f, out):
         ndf.to_csv(path_or_buf=f, line_terminator='\n', na_rep='NaN', columns=ndf.columns, index=False)
         print("Write OK")
 
-if __name__ == "__main__":
+def extractNaFlagData(f, out):
+    df = pd.read_csv(f)
+    ndf = df[not df['flag'].isna()].drop()
+    with open(out, mode="w") as f:
+        ndf.to_csv(path_or_buf=f, line_terminator='\n', na_rep='NaN', columns=ndf.columns, index=False)
+        print("Write OK")
+
+# 生成训练集和验证集的处理方法集合
+def generateTrainAndVerifyDataset():
     # 训练集有关的三个csv的合并，第一步先跑这两个
     mergeCsv('base_train_sum.csv', 'year_report_train_sum.csv', 'money_report_train_sum.csv', 'merge1.csv')
     combinedTableAnalysis('merge1.csv', 't1.csv')
@@ -191,6 +208,27 @@ if __name__ == "__main__":
     
     # 划分验证集和数据集
     divideTrainAndVerify('comb_rate.csv', 'train.csv', 'verify.csv', 0.5)
-    
+
+def generateNaFlagDataset():
+    mergeCsv('base_train_sum.csv', 'year_report_train_sum.csv', 'money_report_train_sum.csv', 'merge1.csv', onlynaflag=True)
+    combinedTableAnalysis('merge1.csv', 't1.csv')
+
+    mergeCsv('base_verify1.csv', 'year_report_verify1.csv', 'money_information_verify1.csv', 'merge2.csv', onlynaflag=True)
+    combinedTableAnalysis('merge2.csv', 't2.csv')
+
+    mergeTrainAndVerify('t1.csv', 't2.csv', 'na.csv')
+
+    ratioProcess("na.csv", "na_rate.csv")
+
+# 脱去标签，只留下特征值
+def ripLabels(fp, arr:list):
+    ndf = pd.read_csv(fp)
+    ndf.drop(columns=arr, inplace=True)
+    print(ndf)
+    return np.array(ndf)
+
+if __name__ == "__main__":
+    # generateTrainAndVerifyDataset()
+    generateNaFlagDataset()
     # 处理只包含比例的数据
     pass
