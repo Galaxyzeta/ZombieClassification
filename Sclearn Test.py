@@ -13,12 +13,14 @@ bestModel: 					full	fillna
 def test():
 	# preprocessing
 	## Data read
-	(train_data, train_labels) = FullDataProcess.extractFlag("AllDataRegression/new.csv")
-	(verify_data, verify_labels) = FullDataProcess.extractFlag("AllDataRegression/merge2_dropless.csv")
+	(train_data, train_labels) = FullDataProcess.extractFlag("AllDataMLP/new.csv")
+	(verify_data, verify_labels) = FullDataProcess.extractFlag("AllDataMLP/merge2_dropless.csv")
 
 	## Normalization
 	train_data = normalize(train_data)
 	verify_data = normalize(verify_data)
+	print(train_data)
+	print(verify_data)
 	## Data Inspection
 	print(train_data.shape)
 	print(verify_data.shape)

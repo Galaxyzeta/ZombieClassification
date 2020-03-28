@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from sklearn.preprocessing import normalize
 # Merge three csv. f1 = base.csv, f2 = year_report.csv, f3 = money_report.csv, f4 = knowledge.csv, out = out.csv
 # Then, apply drop na and wash data.
 
@@ -36,18 +37,21 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
         rename = dict(zip(k, tmpk))
         ## Calculate average reference table, then rename. 
         repl_table = tmp.groupby(by=['service_type', 'ent_type', 'cont_type', 'area']).mean().rename(columns=rename).drop(columns=['year', 'ID'])
+        ## 特征缩放
         c2 = pd.merge(tmp, repl_table, on=['service_type', 'ent_type', 'cont_type', 'area'], how='left')
         c2.dropna(subset=['ID'], inplace=True)
         for col in k:
             c2[col].fillna(c2[col+'_avg'] ,inplace=True)
         c2.drop(columns=tmpk+helper, inplace=True)
-        
+
         for col in ['reg_time', 'reg_money', 'stock_rate']:
             c1[col].fillna(c1[col].mean(), inplace=True)
         c1['flag'].dropna(inplace=True)
 
         for col in ['invention','logo','copyright']:
             c4[col].fillna(0, inplace=True)
+    
+    c2['population'] = c2['population'] / c2['population'].max()
     ndf:pd.DataFrame = pd.merge(c2, c3, on=['ID','year'], how='left')
     
     if fillna == False:
@@ -112,6 +116,7 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
     ndf = mn[['zq_perc', 'xmzc_perc', 'gq_perc', 'nbmy_perc', 'debt_perc', 'mainincome_perc', 'owner_perc', 'tax_perc']]
 
     # 计算三年数据每两年之间的差异，此操作会导致部分数据丢失，其中原因可能与年份少于3年有关！
+    
     ndf = ndf.reset_index()
     ndf.index.rename('ind', inplace=True)
     rename = {'population':'population_change1', 'debt_perc': 's1_debt_perc', 'owner_perc': 's1_owner_perc', 'mainincome_perc': 's1_mainincome_perc', 'tax_perc': 's1_tax_perc'}
@@ -125,7 +130,7 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
     calc_s2 = calc[calc.index%2==1].reset_index().drop(columns=['index']).rename(columns=rename)
     calc_s2.index.rename('ind', inplace=True)
     ndf = pd.merge(ndf, calc_s2 ,on='ind')
-
+    
     # 合并其余项
     try:
         c1.drop(columns=['cid'], inplace=True)
@@ -168,6 +173,28 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
     ##############################################
 
     # @1 四特征值模型训练专用，特征值为[ debt_perc, mainincome_perc, owner_perc, tax_perc]
+
+    ndf = ndf.drop(columns=['zq_perc', 'xmzc_perc', 'gq_perc', 'nbmy_perc', 's1_debt_perc',
+       's1_owner_perc', 's1_mainincome_perc', 's1_tax_perc', 's2_debt_perc',
+       's2_owner_perc', 's2_mainincome_perc', 's2_tax_perc', 'population_change1', 'population_change2',
+        'reg_time','reg_money', 'stock_rate', 'invention', 'logo', 'copyright',
+       'service_type_A', 'service_type_B', 'service_type_C', 'service_type_D',
+       'service_type_E', 'service_type_F', 'area_A', 'area_B', 'area_C',
+       'area_D', 'area_E', 'area_F', 'area_G', 'ent_type_A', 'ent_type_B',
+       'ent_type_C', 'ent_type_D', 'ent_type_E', 'cont_type_A', 'cont_type_B',
+       ], errors='ignore')
+
+    # @2 几乎全特征模型，因以下几个数据与flag的相关性不高，因此可以扔掉
+    '''
+    ndf = ndf.drop(columns=[
+       'reg_time','reg_money', 'stock_rate', 'invention', 'logo', 'copyright', 'population_change1', 'population_change2'
+       ])
+    '''
+    # @3 全特征值模型，直接注释ndf.drop即可，但全部拿来训练肯定是存在问题的
+    # 空白
+
+    # @4 四特征+年份变化因素 模型
+    '''
     ndf = ndf.drop(columns=['zq_perc', 'xmzc_perc', 'gq_perc', 'nbmy_perc', 's1_debt_perc',
        's1_owner_perc', 's1_mainincome_perc', 's1_tax_perc', 's2_debt_perc',
        's2_owner_perc', 's2_mainincome_perc', 's2_tax_perc', 'reg_time',
@@ -176,17 +203,8 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
        'service_type_E', 'service_type_F', 'area_A', 'area_B', 'area_C',
        'area_D', 'area_E', 'area_F', 'area_G', 'ent_type_A', 'ent_type_B',
        'ent_type_C', 'ent_type_D', 'ent_type_E', 'cont_type_A', 'cont_type_B',
-       'population_change1', 'population_change2'])
-    
-    # @2 几乎全特征模型，因以下几个数据与flag的相关性不高，因此可以扔掉
-    '''
-    ndf = ndf.drop(columns=[
-       'reg_time','reg_money', 'stock_rate', 'invention', 'logo', 'copyright'
        ])
     '''
-
-    # @3 全特征值模型，直接注释ndf.drop即可
-    # 空白
     
     f = open(out, mode="w")
     ndf.to_csv(path_or_buf=f, line_terminator='\n', na_rep='NaN', columns=ndf.columns, index=False)
@@ -200,10 +218,14 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
 # 2. 重新用一种简单的方法进行处理，然后写回，重新预测
 # 目前还没做好
 def diffReference(f1, f2, out):
+    print("Analyzing lost data")
     fp1:pd.DataFrame = pd.read_csv(f1)
     fp2:pd.DataFrame = pd.read_csv(f2)
-    m = fp1.merge(fp2, how="outer", indicator=True)
-    m[['ID','_merge','flag']].to_csv(out)
+    fp1.dropna(subset=['flag'], inplace=True)
+    print('Before:'+str(fp1.index.size))
+    print('After:'+str(fp2.index.size))
+    m = pd.merge(fp1[['ID', 'flag']], fp2['ID'], how="left", indicator=True, on=['ID'])
+    m[m['_merge']=='left_only'].to_csv('AllDataMLP/anal.csv', index=False)
     print("Diff analysis OK")
 
 # 合并两个表头相同的csv文件
@@ -226,15 +248,21 @@ def divideTrainAndVerify(f, tout, vout, ratio):
     inp[int(size*ratio) :size].to_csv(path_or_buf=fv, line_terminator='\n', na_rep='NaN', columns=inp.columns, index=False)
     print('Divide OK')
 
-# 从 frm 拿出 count 数量的 flag = 0 记录，与 to 合并后，从 out 输出
+# 从 frm 拿出 count 数量的 flag = 0 记录，与 to 合并后，从 out 输出，操作会使 frm 减少取出的记录
 def takeSomeFlag0(frm, to, out, count):
     df_to:pd.DataFrame = pd.read_csv(to)
     df_frm:pd.DataFrame = pd.read_csv(frm)
-    df_frm = df_frm[df_frm['flag']==0].iloc[0: count]
-    tgt = pd.concat([df_to, df_frm], axis=0, sort=False)
+    df_frm = df_frm.take(np.random.permutation(len(df_frm)))
+    ndf = df_frm[df_frm['flag']==0].iloc[0: count]
+    print(df_frm.index.size)
+    df_frm.drop(df_frm[df_frm['flag']==0].iloc[0: count].index, inplace=True)
+    print(df_frm.index.size)
+    tgt = pd.concat([df_to, ndf], axis=0, sort=False)
     f = open(out, mode="w")
     tgt.to_csv(path_or_buf=f, line_terminator='\n', na_rep='NaN', columns=tgt.columns, index=False)
-    print('Merge OK')
+    f = open(frm, mode="w")
+    df_frm.to_csv(path_or_buf=f, line_terminator='\n', na_rep='NaN', columns=df_frm.columns, index=False)
+    print('Take OK')
 
 # 此函数将在训练开始前被用到，用于提取数据及其标签
 def extractFlag(file, shuffle=True):
@@ -245,7 +273,7 @@ def extractFlag(file, shuffle=True):
     # df = df.drop(columns=['flag', 'ID', 'year_provided', 'owner_perc'])
     df = df.drop(columns=['flag', 'ID'])
     train_data = df.as_matrix()
-    return (train_data, train_labels)
+    return (normalize(train_data), train_labels)
 
 # 半监督学习用，将 nafile 的预测结果 flagfile 替换进 nafile，并输出 out 文件
 def flagReplace(nafile:str, flagfile:str, out:str):
