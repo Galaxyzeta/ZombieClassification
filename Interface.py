@@ -57,8 +57,8 @@ def tf_predict_all(path: str, predictFile: str):
     return npd, acc
 
 # 根据预测结果得到每个僵尸企业所属的省份，实际上，如果需要，可以得到其他的数据，我会给出一些修改建议
-# @param path: 划分区间
-# @param input_df: 
+# @param path: 基础数据来源
+# @param pred_res: 预测结果
 # @return: 返回僵尸企业对应的地区表格，以及每个地区僵尸企业的数量dict
 def getProvince(pred_res:pd.DataFrame, path:str):
     ndf = pd.read_csv(path)
