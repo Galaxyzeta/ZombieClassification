@@ -11,14 +11,15 @@ import Logger
 
 def getModel():
     model = keras.Sequential([
-        layers.BatchNormalization(input_shape=[6,]),
-        layers.Dense(16,activation='relu'),
+        layers.Input(shape=[4,]),
         layers.BatchNormalization(),
-        layers.Dense(32,activation='relu'),
+        layers.Dense(4,activation='relu'),
+        layers.BatchNormalization(),
+        layers.Dense(8,activation='relu'),
         layers.Dense(1,activation='sigmoid')
     ])
     # lr=0.001, decay=1e-5, nesterov=True, momentum=0.9
-    model.compile(optimizer=tf.optimizers.SGD(lr=0.001, decay=2e-5, nesterov=True, momentum=0.9),
+    model.compile(optimizer=tf.optimizers.SGD(lr=0.001, decay=3e-5, nesterov=True, momentum=0.9),
               loss='mean_squared_error',
               batch_size=32,
               metrics=['accuracy']
@@ -36,7 +37,7 @@ def tf_train():
     (verify_data, verify_labels) = FullDataProcess.extractFlag("AllDataMLP/merge2_dropless_verify.csv")
     verify_tuple = (verify_data, verify_labels)
     model = getModel()
-    model.fit(train_data, train_labels, epochs=20, validation_data = verify_tuple, callbacks=[checkpoint, logger])
+    model.fit(train_data, train_labels, epochs=500, validation_data = verify_tuple, callbacks=[checkpoint, logger])
     model.evaluate(verify_data, verify_labels, verbose=2)
     is_save = input("[INFO] Save model? [y]/n")
     if is_save in ['Y', 'y']:
@@ -60,6 +61,6 @@ def tf_model_test(path: str, testfile: str):
 if __name__ == "__main__":
     # np.savetxt(saveTo,arr,fmt = '%f',delimiter=',')
     tf_train()
-    # tf_model_test('Models/best4vec-lv2.h5', "AllDataMLP/merge2_dropless.csv")
+    # tf_model_test('Models/best4vec-lv2.h5', "AllDataMLP/merge2_dropless_test.csv")
     # tf_predict(path = 'AllDataMLP/checkPoint.h5', saveTo = 'AllDataMLP/anal.csv', testFile="AllDataMLP/all_onlyna.csv")
     # print(tf_predict_all('best4vec.h5', 'AllDataMLP/merge2_dropless.csv'))

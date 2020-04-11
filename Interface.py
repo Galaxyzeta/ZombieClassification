@@ -1,6 +1,7 @@
 import pandas as pd
 import tensorflow_core.python.keras as keras
 import numpy as np
+import matplotlib.pyplot as plt
 
 def extract(file:str, shuffle:bool=True):
     # 从csv中去除不需要的列
@@ -55,16 +56,69 @@ def tf_predict_all(path: str, predictFile: str):
     acc = npd[npd['correct']==True]['ID'].count()/size
     return npd, acc
 
+# 根据预测结果得到每个僵尸企业所属的省份，实际上，如果需要，可以得到其他的数据，我会给出一些修改建议
+# @param path: 划分区间
+# @param input_df: 
+# @return: 返回僵尸企业对应的地区表格，以及每个地区僵尸企业的数量dict
+def getProvince(pred_res:pd.DataFrame, path:str):
+    ndf = pd.read_csv(path)
+    ndf.drop(ndf[ndf['flag'] == 0].index, inplace=True)
+    ndf = pd.merge(ndf, pred_res, on=['ID'])
+    counter = dict(ndf.groupby('area').count()['ID'])
+    # 这里可根据需要，加入service_type,area,ent_type,cont_type,cid,stock_rate等
+    return ndf[['ID', 'area']], counter
+
+# 将僵尸企业的特征值划分为若干档次
+# 这里的代码有点不灵活，考虑到灵活性的问题，我建议根据需求自行修改，我会给出一些修改指导
+# 建议tax_perc区间定少一点，因为大部分都是0
+# @param pred_res: 预测得到的Dataframe
+# @param pred_source: 预测的数据是从哪个csv预测出来的？
+# @param division: 划分区间
+# @param labels: 每个区间对应什么名字？
+# @return：返回各企业划分结果的Dataframe（一个id对应多个特征值的划分结果 表格），以及每个特征值对应的企业数量dict{特征值A:{档次1：数量; 档次2：数量}， 特征值B：xxxxx，... ...}
+def getAttributeMap(pred_res:pd.DataFrame, pred_source:str, division:list=[-np.inf,0,0.25,0.5,0.75,1,2.5,5,np.inf], labels:list=["LV1", "LV2", "LV3", "LV4", "LV5", "LV6", "LV7", "LV8"]):
+    ndf = pd.read_csv(pred_source)
+    ndf.drop(ndf[ndf['flag'] == 0].index, inplace=True)
+    ndf.drop(columns=['flag'], inplace=True)
+    ndf = pd.merge(pred_res, ndf, on=['ID'])[['ID', 'debt_perc', 'mainincome_perc', 'owner_perc', 'tax_perc', 'flag']]
+    # 以下代码用于将值进行划分。可以不使用统一的division区间，即把下面的division硬编码成所想要的划分区间。labels是每一个档次对应的标签名，可根据需要硬编码。
+    tmp1 = pd.cut(ndf['debt_perc'], division, labels=labels)
+    tmp2 = pd.cut(ndf['mainincome_perc'], division, labels=labels)
+    tmp3= pd.cut(ndf['owner_perc'], division, labels=labels)
+    tmp4 = pd.cut(ndf['tax_perc'], division, labels=labels)
+    res = ndf[['ID']]
+    res = res.join(tmp1).join(tmp2).join(tmp3).join(tmp4)
+    # 以下代码把输出结果存为csv，用于debug，正式环境下请移除。
+    res.to_csv("Other/log.csv")
+    # 以下代码统计结果
+    counter = dict()
+    counter[tmp1.name] = dict(tmp1.value_counts())
+    counter[tmp2.name] = dict(tmp2.value_counts())
+    counter[tmp3.name] = dict(tmp3.value_counts())
+    counter[tmp4.name] = dict(tmp4.value_counts())
+    return res, counter
+
 if __name__ == "__main__":
     # 这里是使用例子
     # 预测，第一维是预测情况，是pandas的dataframe，第二维是预测精度
-    pd, acc = tf_predict_all('Models/best4vec.h5', 'AllDataMLP/merge2_dropless.csv')
-
+    ndf, acc = tf_predict_all('Models/best4vec.h5', 'AllDataMLP/merge2_dropless.csv')
+    print(ndf, acc)
+    '''
     # 得到一个ID 与 预测结果 封装的元组
     zip_obj = zip(list(pd['ID']), list(pd['flag']))
     # 遍历，可以得到每一个ID 对应的 预测结果
     for i in zip_obj:
         print(i)
-        
+    ''' 
     # 单个预测，得到列表 [[1]] 或者 [[0]]
-    print(tf_predict_one('Models/best4vec.h5', ['','','','']))
+    # print(tf_predict_one('Models/best4vec.h5', ['','','','']))
+    
+    # 预测的僵尸企业对应哪个省份 使用案例
+    province, area = getProvince(pred_res=ndf, path='SourceData/base_verify1.csv')
+    print(province)
+    print(area)
+    
+    # 预测的僵尸企业的特征值档次划分表格与数量统计
+    res, counter = getAttributeMap(pred_res=ndf, pred_source='AllDataMLP/merge2_dropless.csv')
+    print(res)
+    print(counter)
