@@ -21,9 +21,9 @@ class LossHistory(keras.callbacks.Callback):
         self.epoch += 1
         # 每一个epoch完成后向容器里面追加loss，acc
         self.losses['epoch'].append(logs.get('loss'))
-        self.accuracy['epoch'].append(logs.get('acc'))
+        self.accuracy['epoch'].append(logs.get('accuracy'))
         self.val_loss['epoch'].append(logs.get('val_loss'))
-        self.val_acc['epoch'].append(logs.get('val_acc'))
+        self.val_acc['epoch'].append(logs.get('val_accuracy'))
         # 每五秒按照当前容器里的值来绘图
         if self.epoch % 10 == 0:
             self.draw_p(self.losses['epoch'], 'loss', 'train_epoch')

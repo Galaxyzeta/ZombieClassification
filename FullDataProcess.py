@@ -1,8 +1,106 @@
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import normalize
+import matplotlib.pyplot as plt
+from sklearn.feature_selection import VarianceThreshold
+
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import chi2
 # Merge three csv. f1 = base.csv, f2 = year_report.csv, f3 = money_report.csv, f4 = knowledge.csv, out = out.csv
 # Then, apply drop na and wash data.
+def varianceThreshold(f1:str, f2:str, f3:str, f4:str):
+    c1:pd.DataFrame = pd.read_csv(f1)
+    c2:pd.DataFrame = pd.read_csv(f2)
+    c3:pd.DataFrame = pd.read_csv(f3)
+    c4:pd.DataFrame = pd.read_csv(f4)
+    ndf = pd.merge(c2, c3, on=['ID', 'year'])
+    ndf = pd.merge(ndf, c1, on=['ID'])
+    ndf = pd.merge(ndf, c4, on=['ID'])
+    ndf = pd.get_dummies(ndf)
+    ndf.dropna(axis=0, inplace=True)
+    print(ndf.var())
+    sel = VarianceThreshold(threshold=(0.8*(1-0.8)))          #表示剔除特征的方差大于阈值的特征Removing features with low variance
+    sel.fit_transform(ndf)                                      #返回的结果为选择的特征矩阵
+    res:np.ndarray = sel.fit_transform(ndf)
+    print(res[0], ndf.iloc[0])
+
+def chiThreshold(f1:str, f2:str, f3:str, f4:str):
+    c1:pd.DataFrame = pd.read_csv(f1)
+    c2:pd.DataFrame = pd.read_csv(f2)
+    c3:pd.DataFrame = pd.read_csv(f3)
+    c4:pd.DataFrame = pd.read_csv(f4)
+    ndf = pd.merge(c2, c3, on=['ID', 'year'])
+    ndf = pd.merge(ndf, c1, on=['ID'])
+    ndf = pd.merge(ndf, c4, on=['ID'])
+    ndf = pd.get_dummies(ndf)
+    # area = ndf.max() - ndf.min()
+    # ndf = (ndf - ndf.mean()) / area
+    ndf.dropna(axis=0, inplace=True)
+    ndf.drop(columns=['year', 'ID', 'cid'], inplace=True)
+    ndf -= ndf.min()
+    chi2(ndf, ndf['flag'])
+    model1 = SelectKBest(chi2, k=7)
+    res = model1.fit_transform(ndf, ndf['flag'])
+    print(model1.get_support())
+    print(model1.get_support(True))
+    print(res[0])
+    print(ndf.loc[0])
+
+def featureElimination(csv):
+    from sklearn.svm import SVC
+    from sklearn.feature_selection import RFE
+    import matplotlib.pyplot as plt
+    ndf = pd.read_csv(csv)
+    # Load the digits dataset
+    X = ndf.drop(columns=['flag'])
+    y = ndf['flag']
+
+    # Create the RFE object and rank each pixel
+    svc = SVC(kernel="linear", C=1)
+    rfe = RFE(estimator=svc, n_features_to_select=4, step=1)
+    rfe.fit(X, y)
+    ranking = rfe.ranking_
+    print(ranking)
+    print(ndf.columns)
+
+def covariance(f1:str, f2:str, f3:str, f4:str):
+    c1:pd.DataFrame = pd.read_csv(f1)
+    c2:pd.DataFrame = pd.read_csv(f2)
+    c3:pd.DataFrame = pd.read_csv(f3)
+    c4:pd.DataFrame = pd.read_csv(f4)
+    ndf = pd.merge(c2, c3, on=['ID', 'year'])
+    # ndf = pd.merge(ndf, c1, on=['ID'])
+    # ndf = pd.merge(ndf, c4, on=['ID'])
+    ndf = pd.get_dummies(ndf)
+    ################################
+    # 协方差计算
+    ################################
+    ndf.drop(columns=['year', 'ID'], inplace=True)
+    area = ndf.max() - ndf.min()
+    ndf = (ndf - ndf.mean()) / area
+    cov = ndf.cov()
+    ndf.to_csv("Other/log.csv")
+    yLabel = xLabel = ndf.columns
+    #作图阶段
+    fig = plt.figure()
+    #定义画布为1*1个划分，并在第1个位置上进行作图
+    ax:plt.Figure = fig.add_subplot(111)
+    #定义横纵坐标的刻度
+    ax.set_yticks(range(len(yLabel)))
+    ax.set_yticklabels(yLabel)
+    ax.set_xticks(range(len(xLabel)))
+    ax.set_xticklabels(xLabel)
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+        rotation_mode="anchor")
+    #作图并选择热图的颜色填充风格，这里选择hot
+    im = ax.imshow(cov, cmap=plt.cm.hot_r)
+    #增加右侧的颜色刻度条
+    plt.colorbar(im)
+    #增加标题
+    plt.title("This is a title")
+    #show
+    plt.show()
+    return
 
 # ID,zq_perc,xmzc_perc,gq_perc,nbmy_perc,debt_perc,mainincome_perc,owner_perc,tax_perc,s1_debt_perc,s1_owner_perc,s1_mainincome_perc,s2_debt_perc,s2_owner_perc,s2_mainincome_perc,reg_time,reg_money,stock_rate,flag,invention,logo,copyright,service_type_1,service_type_2,service_type_3,service_type_4,service_type_5,service_type_6,area_1,area_2,area_3,area_4,area_5,area_6,area_7,ent_type_1,ent_type_2,ent_type_3,ent_type_4,ent_type_5,cont_type_1,cont_type_2
 
@@ -36,7 +134,7 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
         tmpk = [x+'_avg' for x in k]
         rename = dict(zip(k, tmpk))
         ## Calculate average reference table, then rename. 
-        repl_table = tmp.groupby(by=['service_type', 'ent_type', 'cont_type', 'area']).mean().rename(columns=rename).drop(columns=['year', 'ID'])
+        repl_table = tmp.groupby(by=['service_type', 'ent_type', 'cont_type', 'area']).median().rename(columns=rename).drop(columns=['year', 'ID'])
         ## 特征缩放
         c2 = pd.merge(tmp, repl_table, on=['service_type', 'ent_type', 'cont_type', 'area'], how='left')
         c2.dropna(subset=['ID'], inplace=True)
@@ -45,7 +143,7 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
         c2.drop(columns=tmpk+helper, inplace=True)
 
         for col in ['reg_time', 'reg_money', 'stock_rate']:
-            c1[col].fillna(c1[col].mean(), inplace=True)
+            c1[col].fillna(c1[col].median(), inplace=True)
         c1['flag'].dropna(inplace=True)
 
         for col in ['invention','logo','copyright']:
@@ -116,7 +214,7 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
     ndf = mn[['zq_perc', 'xmzc_perc', 'gq_perc', 'nbmy_perc', 'debt_perc', 'mainincome_perc', 'owner_perc', 'tax_perc']]
 
     # 计算三年数据每两年之间的差异，此操作会导致部分数据丢失，其中原因可能与年份少于3年有关！
-    
+    '''
     ndf = ndf.reset_index()
     ndf.index.rename('ind', inplace=True)
     rename = {'population':'population_change1', 'debt_perc': 's1_debt_perc', 'owner_perc': 's1_owner_perc', 'mainincome_perc': 's1_mainincome_perc', 'tax_perc': 's1_tax_perc'}
@@ -130,7 +228,7 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
     calc_s2 = calc[calc.index%2==1].reset_index().drop(columns=['index']).rename(columns=rename)
     calc_s2.index.rename('ind', inplace=True)
     ndf = pd.merge(ndf, calc_s2 ,on='ind')
-    
+    '''
     # 合并其余项
     try:
         c1.drop(columns=['cid'], inplace=True)
@@ -173,17 +271,15 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
     ##############################################
 
     # @1 四特征值模型训练专用，特征值为[ debt_perc, mainincome_perc, owner_perc, tax_perc]
-
-    ndf = ndf.drop(columns=['zq_perc', 'xmzc_perc', 'gq_perc', 'nbmy_perc', 's1_debt_perc',
-       's1_owner_perc', 's1_mainincome_perc', 's1_tax_perc', 's2_debt_perc',
-       's2_owner_perc', 's2_mainincome_perc', 's2_tax_perc', 'population_change1', 'population_change2',
+    ndf = ndf.drop(columns=['s1_debt_perc', 'zq_perc', 'xmzc_perc', 'gq_perc', 'nbmy_perc',
+        's1_debt_perc','s1_owner_perc', 's1_mainincome_perc', 's1_tax_perc', 's2_debt_perc',
+        's2_owner_perc', 's2_mainincome_perc', 's2_tax_perc',
         'reg_time','reg_money', 'stock_rate', 'invention', 'logo', 'copyright',
-       'service_type_A', 'service_type_B', 'service_type_C', 'service_type_D',
-       'service_type_E', 'service_type_F', 'area_A', 'area_B', 'area_C',
-       'area_D', 'area_E', 'area_F', 'area_G', 'ent_type_A', 'ent_type_B',
-       'ent_type_C', 'ent_type_D', 'ent_type_E', 'cont_type_A', 'cont_type_B',
-       ], errors='ignore')
-
+        'service_type_A', 'service_type_B', 'service_type_C', 'service_type_D',
+        'service_type_E', 'service_type_F', 'area_A', 'area_B', 'area_C',
+        'area_D', 'area_E', 'area_F', 'area_G', 'ent_type_A', 'ent_type_B',
+        'ent_type_C', 'ent_type_D', 'ent_type_E', 'cont_type_A', 'cont_type_B',
+        ], errors='ignore')
     # @2 几乎全特征模型，因以下几个数据与flag的相关性不高，因此可以扔掉
     '''
     ndf = ndf.drop(columns=[
@@ -242,10 +338,32 @@ def divideTrainAndVerify(f, tout, vout, ratio):
     inp = pd.read_csv(f)
     inp = inp.take(np.random.permutation(len(inp)))
     size = len(inp)
-    ft = open(tout, mode="w")
-    inp[0: int(size*ratio)].to_csv(path_or_buf=ft, line_terminator='\n', na_rep='NaN', columns=inp.columns, index=False)
-    fv = open(vout, mode="w")
-    inp[int(size*ratio) :size].to_csv(path_or_buf=fv, line_terminator='\n', na_rep='NaN', columns=inp.columns, index=False)
+    verify = inp[0: int(size*ratio)]
+    verify.to_csv(tout, index=False)
+    test = inp[int(size*ratio) :size]
+    test.to_csv(vout, index=False)
+    print("Verify="+str(len(verify))+"\tTest="+str(len(test)))
+    print('Divide OK')
+
+# 将所有数据的csv按照比例划分验证集和训练集
+def divideTrainAndVerifyEvenly(f, tout, vout, ratio):
+    inp = pd.read_csv(f)
+    inp = inp.take(np.random.permutation(len(inp)))
+    flag0 = inp[inp['flag']==0]
+    flag1 = inp[inp['flag']==1]
+    flag0_number = len(flag0)
+    flag1_number = len(flag1)
+    max_num = max(flag0_number, flag1_number)
+    print(flag0_number, flag1_number, max_num)
+    train_flag0 = flag0[0: int(flag0_number*ratio)]
+    verify_flag0 = flag0[int(flag0_number*ratio): flag0_number]
+    train_flag1 = flag1[0: int(flag0_number*ratio)]
+    verify_flag1 = flag1[int(flag0_number*ratio): flag1_number]
+    train = pd.concat([train_flag0, train_flag1])
+    train.to_csv(tout, index=False)
+    verify = pd.concat([verify_flag0, verify_flag1])
+    verify.to_csv(vout, index=False)
+    print("Train="+str(len(train))+"\tVerify="+str(len(verify)))
     print('Divide OK')
 
 # 从 frm 拿出 count 数量的 flag = 0 记录，与 to 合并后，从 out 输出，操作会使 frm 减少取出的记录
@@ -282,10 +400,39 @@ def flagReplace(nafile:str, flagfile:str, out:str):
     tgtfp['flag'] = flagfp['flag']
     tgtfp.to_csv(out, index=False)
 
-# 不要使用，因为我忘了当初为什么要写这个东西
-def getNaFileCopyForAnotherModel(nafile:str, out:str):
-    tgtfp = pd.read_csv(nafile)
-    tgtfp[['ID', 'flag', 'zq_perc', 'gq_perc', 'xmzc_perc', 'nbmy_perc', 'debt_perc','mainincome_perc','tax_perc','owner_perc']].to_csv(out, index=False)
+# 从原数据集分离出训练/验证csv + 测试csv，现场仿真测试
+def generateRealTesting(f1:str, f2:str, f3:str, f4:str, ratio:float):
+    # --- 读取CSV ---
+    c1:pd.DataFrame = pd.read_csv(f1)
+    c2:pd.DataFrame = pd.read_csv(f2)
+    c3:pd.DataFrame = pd.read_csv(f3)
+    c4:pd.DataFrame = pd.read_csv(f4)
+
+    # ----比例划分---
+    permutated_id = c1['ID'].take(np.random.permutation(len(c1['ID'])))
+    test_id = permutated_id[0: int(len(permutated_id)*ratio)]
+    tv_id = permutated_id[int(len(permutated_id)*ratio): len(permutated_id)]
+
+    c1_test = pd.merge(c1, test_id)
+    c2_test = pd.merge(c2, test_id)
+    c3_test = pd.merge(c3, test_id)
+    c4_test = pd.merge(c4, test_id)
+
+    c1_test.to_csv("AllDataMLP/GeneratedSourceData/f1_test.csv", index=False)
+    c2_test.to_csv("AllDataMLP/GeneratedSourceData/f2_test.csv", index=False)
+    c3_test.to_csv("AllDataMLP/GeneratedSourceData/f3_test.csv", index=False)
+    c4_test.to_csv("AllDataMLP/GeneratedSourceData/f4_test.csv", index=False)
+
+    c1_tv = pd.merge(c1, tv_id)
+    c2_tv = pd.merge(c2, tv_id)
+    c3_tv = pd.merge(c3, tv_id)
+    c4_tv = pd.merge(c4, tv_id)
+
+    c1_tv.to_csv("AllDataMLP/GeneratedSourceData/f1_verify.csv", index=False)
+    c2_tv.to_csv("AllDataMLP/GeneratedSourceData/f2_verify.csv", index=False)
+    c3_tv.to_csv("AllDataMLP/GeneratedSourceData/f3_verify.csv", index=False)
+    c4_tv.to_csv("AllDataMLP/GeneratedSourceData/f4_verify.csv", index=False)
+
 
 # 运行一次 main 中的前 7 条，可以进行一次完整的数据预处理。这几个函数全部运行完毕大概需要5秒的时间。
 # 文件说明：
@@ -296,15 +443,40 @@ def getNaFileCopyForAnotherModel(nafile:str, out:str):
 # merge2_dropless：由验证集处理，填补必要的na，全监督学习用。
 
 if __name__ == "__main__":
+    # 普通测试
+    '''
+    generateRealTesting('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv', 0.2)
     data_merge('SourceData/base_train_sum.csv', 'SourceData/year_report_train_sum.csv', 'SourceData/money_report_train_sum.csv', 'SourceData/knowledge_train_sum.csv', 'AllDataMLP/merge1.csv')
     data_merge('SourceData/base_train_sum.csv', 'SourceData/year_report_train_sum.csv', 'SourceData/money_report_train_sum.csv', 'SourceData/knowledge_train_sum.csv', 'AllDataMLP/merge1_onlyna.csv', flagna=True)
     data_merge('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv', 'AllDataMLP/merge2.csv')
     data_merge('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv', 'AllDataMLP/merge2_onlyna.csv', flagna=True)
     data_merge('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv', 'AllDataMLP/merge2_dropless.csv', fillna=True, flagna=False)
-    takeSomeFlag0('AllDataMLP/merge2.csv', 'AllDataMLP/merge1.csv', 'AllDataMLP/new.csv', 3300)
+    # takeSomeFlag0('AllDataMLP/merge2.csv', 'AllDataMLP/merge1.csv', 'AllDataMLP/new.csv', 3300)
+    diffReference('SourceData/base_verify1.csv', 'AllDataMLP/merge2_dropless.csv', 'AllDataMLP/anal.csv')
+
+    mergeTrainAndVerify('AllDataMLP/merge1.csv', 'AllDataMLP/merge2_dropless.csv', 'AllDataMLP/all.csv')
+    divideTrainAndVerifyEvenly('AllDataMLP/all.csv', 'AllDataMLP/new.csv', 'AllDataMLP/merge2_dropless.csv', 0.7)
     divideTrainAndVerify('AllDataMLP/merge2_dropless.csv', 'AllDataMLP/merge2_dropless_verify.csv', 'AllDataMLP/merge2_dropless_test.csv', 0.5)
     # WIP
-    diffReference('SourceData/base_verify1.csv', 'AllDataMLP/merge2_dropless.csv', 'AllDataMLP/anal.csv')
-    # mergeTrainAndVerify('AllDataMLP/merge1.csv', 'AllDataMLP/merge2.csv', 'AllDataMLP/all.csv')
     # flagReplace('AllDataMLP/all_onlyna.csv', 'AllDataMLP/anal.csv', 'AllDataMLP/na_flag_replaced.csv')
-    pass
+    # covariance('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv')
+    # chiThreshold('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv')
+    # varianceThreshold('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv')
+    # featureElimination("AllDataMLP/new.csv")
+    '''
+
+    # 现场仿真模拟考试--环节1：训练
+    # 考试说明：原有验证集被按照比例划分成了新的验证集和测试集，测试集目前不允许参与数据处理
+
+    generateRealTesting('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv', 0.5)
+    data_merge('SourceData/base_train_sum.csv', 'SourceData/year_report_train_sum.csv', 'SourceData/money_report_train_sum.csv', 'SourceData/knowledge_train_sum.csv', 'AllDataMLP/merge1.csv')
+    data_merge('AllDataMLP/GeneratedSourceData/f1_verify.csv', 'AllDataMLP/GeneratedSourceData/f2_verify.csv', 'AllDataMLP/GeneratedSourceData/f3_verify.csv', 'AllDataMLP/GeneratedSourceData/f4_verify.csv', 'AllDataMLP/merge2.csv')
+    data_merge('AllDataMLP/GeneratedSourceData/f1_verify.csv', 'AllDataMLP/GeneratedSourceData/f2_verify.csv', 'AllDataMLP/GeneratedSourceData/f3_verify.csv', 'AllDataMLP/GeneratedSourceData/f4_verify.csv', 'AllDataMLP/merge2_dropless.csv', fillna=True, flagna=False)
+    diffReference('AllDataMLP/GeneratedSourceData/f1_verify.csv', 'AllDataMLP/merge2_dropless.csv', 'AllDataMLP/anal.csv')
+    mergeTrainAndVerify('AllDataMLP/merge1.csv', 'AllDataMLP/merge2_dropless.csv', 'AllDataMLP/all.csv')
+    divideTrainAndVerifyEvenly('AllDataMLP/all.csv', 'AllDataMLP/new.csv', 'AllDataMLP/merge2_dropless.csv', 0.7)
+    # 现场仿真模拟考试--环节2：验收
+    # 考试说明：仅对测试集进行数据处理，代入已有模型验证真实效果
+    data_merge('AllDataMLP/GeneratedSourceData/f1_test.csv', 'AllDataMLP/GeneratedSourceData/f2_test.csv', 'AllDataMLP/GeneratedSourceData/f3_test.csv', 'AllDataMLP/GeneratedSourceData/f4_test.csv', 'AllDataMLP/merge2_dropless_test.csv', fillna=True, flagna=False)
+    diffReference('AllDataMLP/GeneratedSourceData/f1_test.csv', 'AllDataMLP/merge2_dropless_test.csv', 'AllDataMLP/anal.csv')
+    
