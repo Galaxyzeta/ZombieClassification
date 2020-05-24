@@ -56,6 +56,21 @@ def tf_predict_all(path: str, predictFile: str):
     acc = npd[npd['correct']==True]['ID'].count()/size
     return npd, acc
 
+# 选出预测概率大于threshold（默认0.1）的非僵尸企业的预测概率（均为小于0.5，可以 2*(0.5-k) 算出它变僵尸的概率）
+# 格式：索引 预测概率 企业ID
+def tf_predict_diff(path: str, predictFile: str, threshold: float=0.1):
+    model = keras.models.load_model(path)
+    # model.summary()
+    csv = pd.read_csv(predictFile)[['ID', 'flag']]
+    extracted = extract(predictFile, False)
+    pred_res = model.predict_classes(extracted)
+    pred_rate = model.predict(extracted)
+    csv['pred_rate'] = pred_rate
+    csv['pred_flag'] = pred_res
+    ret = csv[(csv['pred_rate']>threshold)&(csv['pred_flag']==0)][['pred_rate', 'ID']]
+    print(ret)
+    return ret
+
 # 根据预测结果得到每个僵尸企业所属的省份，实际上，如果需要，可以得到其他的数据，我会给出一些修改建议
 # @param path: 基础数据来源
 # @param pred_res: 预测结果
@@ -99,17 +114,18 @@ def getAttributeMap(pred_res:pd.DataFrame, pred_source:str, division:list=[-np.i
     return res, counter
 
 if __name__ == "__main__":
+    '''
     # 这里是使用例子
     # 预测，第一维是预测情况，是pandas的dataframe，第二维是预测精度
     ndf, acc = tf_predict_all('Models/best4vec.h5', 'AllDataMLP/merge2_dropless.csv')
     print(ndf, acc)
-    '''
+
     # 得到一个ID 与 预测结果 封装的元组
     zip_obj = zip(list(pd['ID']), list(pd['flag']))
     # 遍历，可以得到每一个ID 对应的 预测结果
     for i in zip_obj:
         print(i)
-    ''' 
+
     # 单个预测，得到列表 [[1]] 或者 [[0]]
     # print(tf_predict_one('Models/best4vec.h5', ['','','','']))
     
@@ -122,3 +138,5 @@ if __name__ == "__main__":
     res, counter = getAttributeMap(pred_res=ndf, pred_source='AllDataMLP/merge2_dropless.csv')
     print(res)
     print(counter)
+    '''
+    tf_predict_diff('Models/best4vec-sgd.h5', 'AllDataMLP/merge2_dropless_test.csv', 0.10)

@@ -105,7 +105,8 @@ def covariance(f1:str, f2:str, f3:str, f4:str):
 # ID,zq_perc,xmzc_perc,gq_perc,nbmy_perc,debt_perc,mainincome_perc,owner_perc,tax_perc,s1_debt_perc,s1_owner_perc,s1_mainincome_perc,s2_debt_perc,s2_owner_perc,s2_mainincome_perc,reg_time,reg_money,stock_rate,flag,invention,logo,copyright,service_type_1,service_type_2,service_type_3,service_type_4,service_type_5,service_type_6,area_1,area_2,area_3,area_4,area_5,area_6,area_7,ent_type_1,ent_type_2,ent_type_3,ent_type_4,ent_type_5,cont_type_1,cont_type_2
 
 # 数据预处理
-def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagna:bool=False)->None:
+def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagna:bool=False, noflag:bool=True)->None:
+
     # --- 读取CSV ---
     c1:pd.DataFrame = pd.read_csv(f1)
     c2:pd.DataFrame = pd.read_csv(f2)
@@ -135,7 +136,7 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
         rename = dict(zip(k, tmpk))
         ## Calculate average reference table, then rename. 
         repl_table = tmp.groupby(by=['service_type', 'ent_type', 'cont_type', 'area']).median().rename(columns=rename).drop(columns=['year', 'ID'])
-        ## 特征缩放
+        
         c2 = pd.merge(tmp, repl_table, on=['service_type', 'ent_type', 'cont_type', 'area'], how='left')
         c2.dropna(subset=['ID'], inplace=True)
         for col in k:
@@ -144,7 +145,9 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
 
         for col in ['reg_time', 'reg_money', 'stock_rate']:
             c1[col].fillna(c1[col].median(), inplace=True)
-        c1['flag'].dropna(inplace=True)
+        
+        if noflag == False:
+            c1['flag'].dropna(inplace=True)
 
         for col in ['invention','logo','copyright']:
             c4[col].fillna(0, inplace=True)
@@ -242,7 +245,8 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
     if flagna == True:
         ndf = ndf[ndf['flag'].isna()]
     else:
-        ndf.dropna(subset=['flag'], inplace=True)
+        if noflag == False:
+            ndf.dropna(subset=['flag'], inplace=True)
 
     # 新增one-hot编码列
     ndf = pd.get_dummies(ndf)
@@ -312,15 +316,18 @@ def data_merge(f1:str, f2:str, f3:str, f4:str, out:str, fillna:bool=False, flagn
 # 缺失的数据有如下几种处理方法：
 # 1. 全部 flag = 0
 # 2. 重新用一种简单的方法进行处理，然后写回，重新预测
-# 目前还没做好
-def diffReference(f1, f2, out):
+def diffReference(f1, f2, out, noflag:bool=True):
     print("Analyzing lost data")
     fp1:pd.DataFrame = pd.read_csv(f1)
     fp2:pd.DataFrame = pd.read_csv(f2)
-    fp1.dropna(subset=['flag'], inplace=True)
+    if noflag == False:
+        fp1.dropna(subset=['flag'], inplace=True)
     print('Before:'+str(fp1.index.size))
     print('After:'+str(fp2.index.size))
-    m = pd.merge(fp1[['ID', 'flag']], fp2['ID'], how="left", indicator=True, on=['ID'])
+    if noflag == True:
+        m = pd.merge(fp1['ID'], fp2['ID'], how="left", indicator=True, on=['ID'])
+    else:
+        m = pd.merge(fp1[['ID', 'flag']], fp2['ID'], how="left", indicator=True, on=['ID'])
     m[m['_merge']=='left_only'].to_csv('AllDataMLP/anal.csv', index=False)
     print("Diff analysis OK")
 
@@ -408,7 +415,7 @@ def generateRealTesting(f1:str, f2:str, f3:str, f4:str, ratio:float):
     c3:pd.DataFrame = pd.read_csv(f3)
     c4:pd.DataFrame = pd.read_csv(f4)
 
-    # ----比例划分---
+    # ----比例划分-----
     permutated_id = c1['ID'].take(np.random.permutation(len(c1['ID'])))
     test_id = permutated_id[0: int(len(permutated_id)*ratio)]
     tv_id = permutated_id[int(len(permutated_id)*ratio): len(permutated_id)]
@@ -464,10 +471,9 @@ if __name__ == "__main__":
     # varianceThreshold('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv')
     # featureElimination("AllDataMLP/new.csv")
     '''
-
+    '''
     # 现场仿真模拟考试--环节1：训练
     # 考试说明：原有验证集被按照比例划分成了新的验证集和测试集，测试集目前不允许参与数据处理
-
     generateRealTesting('SourceData/base_verify1.csv', 'SourceData/year_report_verify1.csv', 'SourceData/money_information_verify1.csv', 'SourceData/paient_information_verify1.csv', 0.5)
     data_merge('SourceData/base_train_sum.csv', 'SourceData/year_report_train_sum.csv', 'SourceData/money_report_train_sum.csv', 'SourceData/knowledge_train_sum.csv', 'AllDataMLP/merge1.csv')
     data_merge('AllDataMLP/GeneratedSourceData/f1_verify.csv', 'AllDataMLP/GeneratedSourceData/f2_verify.csv', 'AllDataMLP/GeneratedSourceData/f3_verify.csv', 'AllDataMLP/GeneratedSourceData/f4_verify.csv', 'AllDataMLP/merge2.csv')
@@ -479,4 +485,13 @@ if __name__ == "__main__":
     # 考试说明：仅对测试集进行数据处理，代入已有模型验证真实效果
     data_merge('AllDataMLP/GeneratedSourceData/f1_test.csv', 'AllDataMLP/GeneratedSourceData/f2_test.csv', 'AllDataMLP/GeneratedSourceData/f3_test.csv', 'AllDataMLP/GeneratedSourceData/f4_test.csv', 'AllDataMLP/merge2_dropless_test.csv', fillna=True, flagna=False)
     diffReference('AllDataMLP/GeneratedSourceData/f1_test.csv', 'AllDataMLP/merge2_dropless_test.csv', 'AllDataMLP/anal.csv')
+    '''
+    # 最终测试1
+    data_merge('SourceData/FinalTest/base_test_sum.csv', 'SourceData/FinalTest/year_report_test_sum.csv', 'SourceData/FinalTest/money_report_test_sum.csv', 'SourceData/FinalTest/knowledge_test_sum.csv', 'AllDataMLP/merge2_dropless_test.csv', fillna=True, flagna=False)
+    diffReference('SourceData/FinalTest/base_test_sum.csv', 'AllDataMLP/merge2_dropless_test.csv', 'AllDataMLP/anal.csv', noflag=True)
     
+    # 最终测试2
+    '''
+    data_merge('SourceData/FinalTest2/base_test_sum.csv', 'SourceData/FinalTest2/year_report_test_sum.csv', 'SourceData/FinalTest2/money_report_test_sum.csv', 'SourceData/FinalTest2/knowledge_test_sum.csv', 'AllDataMLP/merge2_dropless_test.csv', fillna=True, flagna=False)
+    diffReference('SourceData/FinalTest2/base_test_sum.csv', 'AllDataMLP/merge2_dropless_test.csv', 'AllDataMLP/anal.csv', noflag=True)
+    '''

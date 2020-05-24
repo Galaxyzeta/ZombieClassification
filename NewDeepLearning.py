@@ -19,8 +19,7 @@ def getModel():
         layers.Dense(1,activation='sigmoid')
     ])
     # lr=0.001, decay=1e-5, nesterov=True, momentum=0.9
-    '''
-    model.compile(optimizer=tf.optimizers.SGD(lr=0.001, decay=3e-5, nesterov=True, momentum=0.9),
+    model.compile(optimizer=tf.optimizers.SGD(lr=0.001, decay=1e-5, nesterov=True, momentum=0.9),
               loss='binary_crossentropy',
               batch_size=32,
               metrics=['accuracy']
@@ -30,6 +29,7 @@ def getModel():
               loss='binary_crossentropy',
               metrics=['accuracy'],
               )
+    '''
     return model
 
 # 训练模型 采用checkpoint回调函数，自动记录训练过程中的准确率最高模型
@@ -43,7 +43,7 @@ def tf_train():
     (verify_data, verify_labels) = FullDataProcess.extractFlag("AllDataMLP/merge2_dropless_verify.csv")
     verify_tuple = (verify_data, verify_labels)
     model = getModel()
-    model.fit(train_data, train_labels, epochs=5000, validation_data = verify_tuple, callbacks=[checkpoint, logger], shuffle=True)
+    model.fit(train_data, train_labels, epochs=500, validation_data = verify_tuple, callbacks=[checkpoint, logger], shuffle=True)
     model.evaluate(verify_data, verify_labels, verbose=1)
     is_save = input("[INFO] Save model? [y]/n")
     if is_save in ['Y', 'y']:
@@ -64,10 +64,26 @@ def tf_model_test(path: str, testfile: str):
         model.evaluate(verify_data, verify_labels, verbose=2)
     '''
 
+def tf_predict(path: str, testFile:str, saveTo:str, dropflag=True):
+    model = keras.models.load_model(path)
+    model.summary()
+    df = pd.read_csv(testFile)
+    tmp = df.drop(columns=['ID'])
+    if dropflag == True:
+        tmp = tmp.drop(columns=['flag'])
+    df['result'] = model.predict_classes(tmp)
+    if dropflag == True:
+        df[['ID', 'result', 'flag']].to_csv(saveTo, index=False)
+    else:
+        df[['ID', 'result']].to_csv(saveTo, index=False)
+
 if __name__ == "__main__":
+    # print("Hello World!")
     # np.savetxt(saveTo,arr,fmt = '%f',delimiter=',')
     # tf_train()
-    tf_model_test('TmpModels/tmp_model.h5', "AllDataMLP/merge2_dropless_test.csv")
-    # tf_predict(path = 'AllDataMLP/checkPoint.h5', saveTo = 'AllDataMLP/anal.csv', testFile="AllDataMLP/all_onlyna.csv")
+
+    # tf_model_test('Models/best4vec-hybrid-ultra2.h5', "AllDataMLP/merge2_dropless_test.csv")
+    # tf_predict(path = 'Models/best4vec-sgd.h5', saveTo = 'AllDataMLP/anal.csv', testFile="AllDataMLP/merge2_dropless_test.csv", dropflag=True)
+    tf_predict(path = 'Models/best4vec-best.h5', saveTo = 'AllDataMLP/anal.csv', testFile="AllDataMLP/merge2_dropless_test.csv", dropflag=False)
     # print(tf_predict_all('best4vec.h5', 'AllDataMLP/merge2_dropless.csv'))
     pass

@@ -3,6 +3,7 @@ import os
 import tensorflow_core.python.keras as keras
 import matplotlib.pyplot as plt
 
+
 def log(file)->None:
 	fp = open(file, mode="a")
 	fp.writelines(time.strftime('%Y:%m:%d %H:%M:%S\t',time.localtime(time.time())))
@@ -26,9 +27,11 @@ class LossHistory(keras.callbacks.Callback):
         self.val_acc['epoch'].append(logs.get('val_accuracy'))
         # 每五秒按照当前容器里的值来绘图
         if self.epoch % 10 == 0:
+            plt.ylim(0,0.2)
             self.draw_p(self.losses['epoch'], 'loss', 'train_epoch')
-            self.draw_p(self.accuracy['epoch'], 'acc', 'train_epoch')
             self.draw_p(self.val_loss['epoch'], 'loss', 'val_epoch')
+            plt.ylim(0.8,1)
+            self.draw_p(self.accuracy['epoch'], 'acc', 'train_epoch')
             self.draw_p(self.val_acc['epoch'], 'acc', 'val_epoch')
     #绘图，这里把每一种曲线都单独绘图，若想把各种曲线绘制在一张图上的话可修改此方法
     def draw_p(self, lists, label, type):
